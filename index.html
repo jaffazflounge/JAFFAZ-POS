@@ -247,7 +247,21 @@
     </style>
 </head>
 <body>
-
+<div id="mainLockScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#111; z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white;">
+    <h2 style="font-family:sans-serif; margin-bottom:20px;">🔒 JAFFAZ POS SECURITY</h2>
+    <input type="password" id="accessPin" placeholder="Enter PIN Code" style="padding:10px; font-size:20px; text-align:center; width:200px; border-radius:5px; border:none;">
+    <button onclick="unlockPOS()" style="margin-top:15px; padding:10px 25px; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">UNLOCK SYSTEM</button>
+</div>
+<script>
+    function unlockPOS() {
+        var p = document.getElementById('accessPin').value;
+        if(p === "746242") { // Yahan Password Change Karein
+            document.getElementById('mainLockScreen').style.display = 'none';
+        } else {
+            alert("❌ Access Denied! Ghalat Password.");
+        }
+    }
+</script>
     <div id="customAlert" class="custom-alert-overlay">
         <div class="custom-alert-box">
             <div id="alertTitle" class="alert-title">Notice</div>

@@ -59,6 +59,10 @@
         /* INFO BAR */
         .info-bar { display: flex; gap: 5px; padding: 5px 10px; background: #e9ecef; border-bottom: 1px solid #ccc; align-items: center; }
         .info-display { flex: 2; padding: 6px; border: 1px solid #aaa; border-radius: 4px; font-size: 12px; font-weight: bold; color: #333; background: #fff; }
+        
+        /* POINTS DISPLAY */
+        .points-badge { font-size: 11px; font-weight: bold; color: var(--edit-orange); display: none; background: #fff; padding: 6px; border-radius: 4px; border: 1px solid #aaa; white-space: nowrap; }
+
         .btn-plus { width: 28px; height: 28px; background: var(--btn-danger); color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .btn-hist { width: 35px; height: 28px; background: var(--gold-history); color: black; border: 1px solid #e0a800; border-radius: 4px; font-weight: bold; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .info-select { flex: 1.5; padding: 6px; border: 1px solid #aaa; border-radius: 4px; font-size: 11px; font-weight: bold; }
@@ -247,21 +251,14 @@
     </style>
 </head>
 <body>
-<div id="mainLockScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#111; z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white;">
-    <h2 style="font-family:sans-serif; margin-bottom:20px;">🔒 JAFFAZ POS SECURITY</h2>
-    <input type="password" id="accessPin" placeholder="Enter PIN Code" style="padding:10px; font-size:20px; text-align:center; width:200px; border-radius:5px; border:none;">
-    <button onclick="unlockPOS()" style="margin-top:15px; padding:10px 25px; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">UNLOCK SYSTEM</button>
-</div>
-<script>
-    function unlockPOS() {
-        var p = document.getElementById('accessPin').value;
-        if(p === "746242") { // Yahan Password Change Karein
-            document.getElementById('mainLockScreen').style.display = 'none';
-        } else {
-            alert("❌ Access Denied! Ghalat Password.");
-        }
-    }
-</script>
+<div id="appLockScreen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#2c3e50; z-index:999999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white;">
+        <h1 style="font-size: 40px; margin-bottom: 10px;">🔒 JAFFAZ POS</h1>
+        <p style="margin-bottom: 20px;">Please enter PIN to access the system</p>
+        <input type="password" id="appPin" placeholder="Enter PIN" style="padding:15px; font-size:20px; border-radius:8px; border:none; text-align:center; margin-bottom:15px; width: 250px;">
+        <button onclick="unlockApp()" style="padding:12px 30px; font-size:18px; font-weight:bold; background:#28a745; color:white; border:none; border-radius:8px; cursor:pointer; width: 250px;">Unlock POS</button>
+        <p id="lockError" style="color:#ff6b6b; display:none; margin-top:15px; font-weight:bold;">❌ Wrong PIN! Try Again.</p>
+    </div>
+
     <div id="customAlert" class="custom-alert-overlay">
         <div class="custom-alert-box">
             <div id="alertTitle" class="alert-title">Notice</div>
@@ -329,6 +326,7 @@
 
             <div class="info-bar">
                 <input type="text" id="custDisplay" class="info-display" placeholder="Customer Info" readonly>
+                <span id="custPointsDisplay" class="points-badge">⭐ 0 Pts</span>
                 <button class="btn-plus" onclick="openCustModal()" title="Add Customer Details">+</button>
                 <button class="btn-hist" onclick="openCustHistoryModal()" title="Search Customer History">📜</button>
                 
@@ -353,7 +351,13 @@
                     <span style="font-size: 12px; color: #666;">Disc %:</span>
                     <input type="number" id="discPercent" class="action-input" style="max-width: 60px; height: 25px;" placeholder="%" oninput="updateUI()">
                 </div>
-                <div class="grand-total" style="font-size: 24px; border-bottom: 1px solid #ddd; margin-bottom: 5px;">
+                
+                <div id="redeemPointsDiv" style="display: none; justify-content: flex-end; gap: 10px; margin-top: 5px; align-items: center;">
+                    <span style="font-size: 12px; color: var(--edit-orange); font-weight:bold;">Use Points:</span>
+                    <input type="number" id="redeemPointsInput" class="action-input" style="max-width: 60px; height: 25px;" placeholder="Pts" oninput="updateUI()">
+                </div>
+
+                <div class="grand-total" style="font-size: 24px; border-bottom: 1px solid #ddd; margin-bottom: 5px; margin-top:5px;">
                     Total: <span id="grandTotal">0.00</span>
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 10px; align-items: center; margin-bottom: 5px;">
@@ -581,6 +585,9 @@
             menuFontSz: "11px"
         };
         let themeConfig = defaultTheme;
+        
+        // LOYALTY SETTINGS
+        let loyaltyConfig = { enabled: false, earnRate: 100, redeemValue: 1 };
 
         let cart = [];
         let currentMode = "Dine In";
@@ -590,6 +597,7 @@
         let myChart = null;
         let editingItemIdx = null; 
         let isAutoPrintOn = false; 
+        let isOnline = false;
 
         const fontsList = [
             "Arial", "Verdana", "Helvetica", "Tahoma", "Trebuchet MS", "Times New Roman", "Georgia", "Garamond", "Courier New", "Brush Script MT", "Segoe UI", "Roboto", "Lato", "Open Sans", "Montserrat", "Oswald", "Raleway", "Merriweather", "Noto Sans", "Ubuntu"
@@ -663,7 +671,33 @@
              });
         }
 
-        // --- SAVE FUNCTIONS ---
+        // --- SYNC & SAVE FUNCTIONS ---
+        function processOfflineQueue() {
+            if (!isOnline) return;
+            let q = JSON.parse(localStorage.getItem('jaffazOfflineQueue')) || [];
+            if (q.length === 0) return;
+
+            let order = q[0];
+            dbRef.child('sales').child(order.id).set(order).then(() => {
+                q.shift();
+                localStorage.setItem('jaffazOfflineQueue', JSON.stringify(q));
+                setTimeout(processOfflineQueue, 1500); 
+            }).catch(e => console.log("Sync delay", e));
+        }
+
+        function saveSingleOrder(order) {
+            if (order.items) order.items.forEach(i => delete i.img); 
+            if (isOnline) {
+                dbRef.child('sales').child(order.id).set(order); 
+            } else {
+                let q = JSON.parse(localStorage.getItem('jaffazOfflineQueue')) || [];
+                q = q.filter(o => o.id !== order.id);
+                q.push(order);
+                localStorage.setItem('jaffazOfflineQueue', JSON.stringify(q));
+                showCustomAlert("Order saved offline. Will auto-sync when internet returns.");
+            }
+        }
+
         function saveData() {
             const updates = {};
             updates['cats'] = categories;
@@ -671,6 +705,7 @@
             updates['printers'] = printerList;
             updates['rec'] = receiptConfig;
             updates['theme'] = themeConfig;
+            updates['loyalty'] = loyaltyConfig;
             
             dbRef.update(updates); 
             saveProductsOnly();
@@ -678,7 +713,11 @@
             dbRef.child('custs').set(customerDB);
         }
         
-        function saveSalesOnly() { dbRef.child('sales').set(salesHistory).catch(e=>{}); }
+        function saveSalesOnly() { 
+            let salesObj = {};
+            salesHistory.forEach(o => { salesObj[o.id] = o; });
+            dbRef.child('sales').set(salesObj).catch(e=>{}); 
+        }
         function saveProductsOnly() { dbRef.child('prods').set(products).catch(e=>{}); }
         function saveCatsOnly() { dbRef.child('cats').set(categories).catch(e=>{}); }
 
@@ -689,8 +728,11 @@
 
             db.ref(".info/connected").on("value", (snap) => {
                 if (snap.val() === true) {
+                    isOnline = true;
                     document.getElementById('dbStatus').innerText = "🟢 Online";
+                    processOfflineQueue();
                 } else {
+                    isOnline = false;
                     document.getElementById('dbStatus').innerText = "🔴 Offline";
                 }
             });
@@ -700,12 +742,25 @@
                 if (data) {
                     categories = data.cats || defaultCats;
                     products = data.prods || defaultProducts;
-                    salesHistory = data.sales || [];
+                    
+                    let fetchedSales = data.sales || [];
+                    salesHistory = Array.isArray(fetchedSales) ? fetchedSales : Object.values(fetchedSales);
+                    
+                    // Merge local offline queue so orders don't disappear before sync
+                    let q = JSON.parse(localStorage.getItem('jaffazOfflineQueue')) || [];
+                    q.forEach(offlineOrder => {
+                        let idx = salesHistory.findIndex(o => o.id === offlineOrder.id);
+                        if(idx === -1) salesHistory.push(offlineOrder);
+                        else salesHistory[idx] = offlineOrder;
+                    });
+                    salesHistory.sort((a,b) => b.id - a.id);
+
                     customerDB = data.custs || {};
                     waitersList = data.waiters || ["Ali", "Rizwan", "Ahmed"];
                     printerList = data.printers || ["EPSON PC"];
                     receiptConfig = data.rec || receiptConfig;
                     themeConfig = data.theme || defaultTheme;
+                    loyaltyConfig = data.loyalty || { enabled: false, earnRate: 100, redeemValue: 1 };
                     
                     applyTheme();
                     renderCatBar();
@@ -798,13 +853,14 @@
                     await dbRef.child('cats').set(d.cats);
                 }
 
-                // 2. Upload Waiters, Printers, Theme, Rec
+                // 2. Upload Waiters, Printers, Theme, Rec, Loyalty
                 document.getElementById('dbStatus').innerText = "⏳ Uploading Settings...";
                 const settings = {};
                 if(d.waiters) settings.waiters = d.waiters;
                 if(d.printers) settings.printers = d.printers;
                 if(d.theme) settings.theme = d.theme;
                 if(d.rec) settings.rec = d.rec;
+                if(d.loyalty) settings.loyalty = d.loyalty;
                 await dbRef.update(settings);
 
                 // 3. Upload Products
@@ -955,6 +1011,19 @@
                     <div id="viewSettings" class="dash-view-container">
                         <h2>⚙️ Settings</h2>
                         <div style="overflow-y:auto; padding-bottom:20px;">
+                            
+                            <div style="border:1px solid #eee; padding:20px; margin-bottom:15px; border-radius:10px; background:#f4fdf4;">
+                                <h3>🎁 Loyalty Points Setup</h3>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                    <div class="form-group"><label>Enable Loyalty System:</label><select id="setLoyaltyEnable" class="cust-input"><option value="true">Yes</option><option value="false">No</option></select></div>
+                                    <div class="form-group"><label>Amount Spent = 1 Point (PKR):</label><input type="number" id="setEarnRate" class="cust-input" placeholder="e.g. 100"></div>
+                                    <div class="form-group"><label>1 Point Value (PKR):</label><input type="number" id="setRedeemValue" class="cust-input" placeholder="e.g. 1"></div>
+                                </div>
+                                <div style="margin-top:10px;">
+                                    <button onclick="saveLoyaltySettings()" style="padding:10px; background:#28a745; color:white; border:none; cursor:pointer; border-radius:5px;">💾 Save Loyalty Settings</button>
+                                </div>
+                            </div>
+                            
                             <div style="border:1px solid #eee; padding:20px; margin-bottom:15px; border-radius:10px; background:#f9f9f9;">
                                 <h3>🖥️ Screen Display Options</h3>
                                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
@@ -1162,9 +1231,24 @@
         }
 
         // === SETTINGS ===
+        function saveLoyaltySettings() {
+            loyaltyConfig.enabled = document.getElementById('setLoyaltyEnable').value === 'true';
+            loyaltyConfig.earnRate = parseFloat(document.getElementById('setEarnRate').value) || 100;
+            loyaltyConfig.redeemValue = parseFloat(document.getElementById('setRedeemValue').value) || 1;
+            dbRef.child('loyalty').set(loyaltyConfig);
+            updateUI();
+            showCustomAlert("Loyalty Settings Saved Successfully!");
+        }
+
         function openSettings() {
             switchDashView('viewSettings');
             renderPrinterList(); 
+            
+            // Loyalty Fields
+            document.getElementById('setLoyaltyEnable').value = loyaltyConfig.enabled ? "true" : "false";
+            document.getElementById('setEarnRate').value = loyaltyConfig.earnRate;
+            document.getElementById('setRedeemValue').value = loyaltyConfig.redeemValue;
+
             document.getElementById('setRecTitle').value = receiptConfig.title;
             document.getElementById('setRecSub').value = receiptConfig.sub;
             document.getElementById('setRecPhone').value = receiptConfig.phone || "";
@@ -1255,7 +1339,7 @@
         function exportData() {
             const data = {
                 cats: categories, prods: products, sales: salesHistory, custs: customerDB,
-                waiters: waitersList, printers: printerList, rec: receiptConfig, theme: themeConfig
+                waiters: waitersList, printers: printerList, rec: receiptConfig, theme: themeConfig, loyalty: loyaltyConfig
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
             const downloadAnchorNode = document.createElement('a');
@@ -1465,19 +1549,40 @@
                     <div>${i.price * i.qty}</div>
                     <div onclick="removeItem(${i.id})" style="color:red; cursor:pointer; text-align:center;">✖</div>
                 </div>`).join('');
+                
             const sub = cart.reduce((s, i) => s + (i.price * i.qty), 0);
             const discP = parseFloat(document.getElementById('discPercent').value) || 0;
             const serv = parseFloat(document.getElementById('serviceCharges').value) || 0;
-            const total = (sub - (sub * discP / 100)) + serv;
+            
+            // Redeem Points logic
+            let ptsToUse = parseInt(document.getElementById('redeemPointsInput')?.value) || 0;
+            let maxPts = (tempCustomer && tempCustomer.phone && customerDB[tempCustomer.phone]?.points) ? customerDB[tempCustomer.phone].points : 0;
+            if(ptsToUse > maxPts) { 
+                ptsToUse = maxPts; 
+                if(document.getElementById('redeemPointsInput')) document.getElementById('redeemPointsInput').value = maxPts; 
+            }
+            const pointsDiscount = ptsToUse * loyaltyConfig.redeemValue;
+
+            const total = (sub - (sub * discP / 100)) - pointsDiscount + serv;
+
             document.getElementById('subTotal').innerText = sub.toFixed(2);
-            document.getElementById('grandTotal').innerText = (sub - (sub * discP / 100)).toFixed(2);
+            document.getElementById('grandTotal').innerText = (sub - (sub * discP / 100) - pointsDiscount).toFixed(2);
             document.getElementById('finalGrandTotal').innerText = total.toFixed(2);
+            
+            // Show/Hide Loyalty Redeem Input
+            if(document.getElementById('redeemPointsDiv')) {
+                document.getElementById('redeemPointsDiv').style.display = (loyaltyConfig.enabled && tempCustomer) ? 'flex' : 'none';
+            }
         }
         
         function addToCart(id) {
             const p = products.find(prod => prod.id === id);
             const exist = cart.find(i => i.id === id);
-            if(exist) exist.qty++; else cart.push({...p, qty:1, note: ''});
+            if(exist) exist.qty++; else {
+                let itemToAdd = {...p, qty:1, note: ''};
+                delete itemToAdd.img; // REQ 1: Deleted image to stop Firebase upload overload
+                cart.push(itemToAdd);
+            }
             updateUI();
         }
         function addNote(id) {
@@ -1498,6 +1603,8 @@
                 document.getElementById('btnUpdateOrder').style.display='none'; 
                 tempCustomer=null; 
                 document.getElementById('custDisplay').value=''; 
+                document.getElementById('custPointsDisplay').style.display='none';
+                if(document.getElementById('redeemPointsInput')) document.getElementById('redeemPointsInput').value = '';
                 updateUI(); 
             }); 
         }
@@ -1518,14 +1625,33 @@
             const sub = cart.reduce((s, i) => s + (i.price * i.qty), 0);
             const discP = parseFloat(document.getElementById('discPercent').value) || 0;
             const serv = parseFloat(document.getElementById('serviceCharges').value) || 0;
-            const total = (sub - (sub*discP/100)) + serv;
+            
+            let ptsToUse = parseInt(document.getElementById('redeemPointsInput')?.value) || 0;
+            const pointsDiscount = ptsToUse * loyaltyConfig.redeemValue;
+
+            const total = (sub - (sub*discP/100)) - pointsDiscount + serv;
             const bDate = getBusinessDate();
             let src = currentMode==='Dine In' ? document.getElementById('waiterSelect').value : document.getElementById('orderSource').value;
+            
+            let ptsEarned = 0;
+            if(loyaltyConfig.enabled && tempCustomer && tempCustomer.phone) {
+                ptsEarned = Math.floor(total / loyaltyConfig.earnRate);
+            }
             
             if(editingOrderId) {
                 // --- UPDATE ORDER LOGIC (FIXED) ---
                 const idx = salesHistory.findIndex(o=>o.id===editingOrderId);
                 if(idx!==-1) {
+                    const oldOrder = salesHistory[idx];
+                    
+                    // Revert old points first
+                    if(loyaltyConfig.enabled && oldOrder.customerDetails && oldOrder.customerDetails.phone) {
+                         let ph = oldOrder.customerDetails.phone;
+                         if(customerDB[ph]) {
+                             customerDB[ph].points = (customerDB[ph].points || 0) + (oldOrder.pointsUsed || 0) - (oldOrder.pointsEarned || 0);
+                         }
+                    }
+                    
                     salesHistory[idx].items = [...cart];
                     salesHistory[idx].total = total;
                     salesHistory[idx].subtotal = sub;
@@ -1535,10 +1661,19 @@
                     salesHistory[idx].sourceInfo = src;
                     salesHistory[idx].payStatus = document.getElementById('payStatus').value;
                     salesHistory[idx].mode = currentMode;
+                    salesHistory[idx].pointsUsed = ptsToUse;
+                    salesHistory[idx].pointsEarned = ptsEarned;
                     
-                    saveSalesOnly(); 
-                    
-                    // Show Preview
+                    // Apply new points
+                    if(loyaltyConfig.enabled && tempCustomer && tempCustomer.phone) {
+                         let ph = tempCustomer.phone;
+                         if(customerDB[ph] === undefined) customerDB[ph] = { name: tempCustomer.name, phone: ph, address: tempCustomer.address, points: 0 };
+                         if(customerDB[ph].points === undefined) customerDB[ph].points = 0;
+                         customerDB[ph].points = customerDB[ph].points - ptsToUse + ptsEarned;
+                         dbRef.child('custs').child(ph).set(customerDB[ph]);
+                    }
+
+                    saveSingleOrder(salesHistory[idx]); 
                     showPreview(salesHistory[idx], true);
                     
                     // RESET EVERYTHING
@@ -1548,34 +1683,62 @@
                     document.getElementById('btnUpdateOrder').style.display = 'none';
                     tempCustomer = null; 
                     document.getElementById('custDisplay').value = '';
+                    document.getElementById('custPointsDisplay').style.display = 'none';
                     document.getElementById('discPercent').value = '';
                     document.getElementById('serviceCharges').value = '';
+                    if(document.getElementById('redeemPointsInput')) document.getElementById('redeemPointsInput').value = '';
                     updateUI(); 
                 }
             } else {
                 // --- NEW ORDER LOGIC ---
-                const dailyNo = salesHistory.filter(o=>o.businessDate===bDate).length + 1;
+                // REQ 4: Fixed invoice number calculations
+                let maxInv = 106000;
+                let maxDaily = 0;
+                salesHistory.forEach(o => {
+                    if(o.invoice) {
+                        let num = parseInt(o.invoice.replace("INV-", ""));
+                        if(!isNaN(num) && num > maxInv) maxInv = num;
+                    }
+                    if(o.businessDate === bDate && o.dailyNo > maxDaily) {
+                        maxDaily = o.dailyNo;
+                    }
+                });
+                const dailyNo = maxDaily + 1;
+                const nextInvoice = "INV-" + (maxInv + 1);
                 
                 const order = {
-                    id: Date.now(), invoice: "INV-"+(106000+salesHistory.length), dailyNo: dailyNo, businessDate: bDate,
+                    id: Date.now(), invoice: nextInvoice, dailyNo: dailyNo, businessDate: bDate,
                     mode: currentMode, time: new Date().toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'}), date: bDate,
                     items: [...cart], subtotal: sub, discount: (sub*discP/100), serviceCharges: serv, total: total,
-                    customerDetails: tempCustomer, sourceInfo: src, payStatus: document.getElementById('payStatus').value, isDeleted: false
+                    customerDetails: tempCustomer, sourceInfo: src, payStatus: document.getElementById('payStatus').value, isDeleted: false,
+                    pointsUsed: ptsToUse, pointsEarned: ptsEarned
                 };
                 salesHistory.unshift(order);
-                saveSalesOnly(); 
+                
+                // Update Customer Points
+                if(loyaltyConfig.enabled && tempCustomer && tempCustomer.phone) {
+                     let ph = tempCustomer.phone;
+                     if(customerDB[ph] === undefined) customerDB[ph] = { name: tempCustomer.name, phone: ph, address: tempCustomer.address, points: 0 };
+                     if(customerDB[ph].points === undefined) customerDB[ph].points = 0;
+                     customerDB[ph].points = customerDB[ph].points - ptsToUse + ptsEarned;
+                     dbRef.child('custs').child(ph).set(customerDB[ph]);
+                }
+
+                saveSingleOrder(order); 
                 showPreview(order, false);
                 
                 // RESET
                 cart = []; 
                 tempCustomer = null; 
                 document.getElementById('custDisplay').value = ''; 
+                document.getElementById('custPointsDisplay').style.display = 'none';
                 document.getElementById('discPercent').value = ''; 
                 document.getElementById('serviceCharges').value = '';
                 document.getElementById('cPhone').value = '';
                 document.getElementById('cName').value = '';
                 document.getElementById('cAddress').value = '';
                 document.getElementById('payStatus').value = 'Non Paid';
+                if(document.getElementById('redeemPointsInput')) document.getElementById('redeemPointsInput').value = '';
                 
                 updateUI();
             }
@@ -1587,17 +1750,40 @@
                 cart = [...o.items]; editingOrderId = id;
                 document.getElementById('discPercent').value = (o.discount/o.subtotal*100)||0;
                 document.getElementById('serviceCharges').value = o.serviceCharges;
+                if(document.getElementById('redeemPointsInput')) document.getElementById('redeemPointsInput').value = o.pointsUsed || 0;
                 tempCustomer = o.customerDetails;
-                if(tempCustomer) document.getElementById('custDisplay').value = tempCustomer.name;
+                
+                if(tempCustomer) {
+                    document.getElementById('custDisplay').value = tempCustomer.name;
+                    if(loyaltyConfig.enabled) {
+                        let currentPts = (customerDB[tempCustomer.phone] && customerDB[tempCustomer.phone].points) ? customerDB[tempCustomer.phone].points : 0;
+                        document.getElementById('custPointsDisplay').innerText = `⭐ ${currentPts} Pts`;
+                        document.getElementById('custPointsDisplay').style.display = 'inline-block';
+                    }
+                }
+                
                 closeTodayHistory(); updateUI();
                 document.getElementById('btnPlaceOrder').style.display='none'; document.getElementById('btnUpdateOrder').style.display='block';
             });
         }
         function deleteOrder(id) { 
             showCustomConfirm("Delete?", () => { 
-                salesHistory.find(x=>x.id===id).isDeleted=true; 
-                saveSalesOnly();
-                renderTodayHistory(); 
+                let target = salesHistory.find(x=>x.id===id);
+                if(target) {
+                    target.isDeleted = true;
+                    
+                    // Revert points if order is deleted
+                    if(loyaltyConfig.enabled && target.customerDetails && target.customerDetails.phone) {
+                        let ph = target.customerDetails.phone;
+                        if(customerDB[ph]) {
+                            customerDB[ph].points = (customerDB[ph].points || 0) + (target.pointsUsed || 0) - (target.pointsEarned || 0);
+                            dbRef.child('custs').child(ph).set(customerDB[ph]);
+                        }
+                    }
+
+                    saveSingleOrder(target);
+                    renderTodayHistory();
+                }
             }); 
         }
         
@@ -1616,18 +1802,32 @@
             let tempAddressList = c.addressHistory || [c.address];
             document.getElementById('cAddress').value = tempAddressList[tempAddressList.length-1];
             document.getElementById('custSuggestions').style.display='none';
+            
+            if(loyaltyConfig.enabled) {
+                let pts = c.points || 0;
+                document.getElementById('custPointsDisplay').innerText = `⭐ ${pts} Pts`;
+                document.getElementById('custPointsDisplay').style.display = 'inline-block';
+            }
         }
         function saveCustInfo() {
             const ph=document.getElementById('cPhone').value, nm=document.getElementById('cName').value, ad=document.getElementById('cAddress').value;
             if(ph||nm) {
                 tempCustomer = {phone:ph, name:nm, address:ad};
                 if(ph) {
-                    let entry = customerDB[ph] || {name:nm, address:ad, addressHistory:[]};
+                    let entry = customerDB[ph] || {name:nm, address:ad, addressHistory:[], points: 0};
                     entry.name=nm; entry.address=ad; if(ad && !entry.addressHistory.includes(ad)) entry.addressHistory.push(ad);
                     customerDB[ph]=entry; 
                     dbRef.child('custs').set(customerDB);
                 }
                 document.getElementById('custDisplay').value = nm || ph;
+                
+                if(loyaltyConfig.enabled) {
+                    let pts = (customerDB[ph] && customerDB[ph].points) ? customerDB[ph].points : 0;
+                    document.getElementById('custPointsDisplay').innerText = `⭐ ${pts} Pts`;
+                    document.getElementById('custPointsDisplay').style.display = 'inline-block';
+                }
+                
+                updateUI(); // Ensure points redeem box shows up
                 closeCustModal();
             }
         }
@@ -1644,6 +1844,7 @@
             document.getElementById('custDBList').innerHTML = filteredKeys.map(k=> {
                 const c = customerDB[k];
                 const addr = (c.addressHistory && c.addressHistory.length) ? c.addressHistory[c.addressHistory.length-1] : c.address;
+                const pts = c.points || 0;
                 return `<tr>
                     <td>${c.name}</td>
                     <td>${k}</td>
@@ -1657,7 +1858,7 @@
         }
         function viewCustDetails(phone) {
             const c = customerDB[phone];
-            showCustomAlert(`Name: ${c.name}\nPhone: ${phone}\nCurrent Address: ${c.address}\n\nPast Addresses:\n${(c.addressHistory || []).join('\n')}`, "Customer Info");
+            showCustomAlert(`Name: ${c.name}\nPhone: ${phone}\nCurrent Address: ${c.address}\nLoyalty Points: ⭐ ${c.points || 0}\n\nPast Addresses:\n${(c.addressHistory || []).join('\n')}`, "Customer Info");
         }
         function deleteCustomer(ph) {
             showCustomConfirm("Are you sure you want to delete this customer?", () => {
@@ -1714,7 +1915,7 @@
             }
             const itemsRows = o.items.map(i => `<tr><td><strong>${i.name}</strong>${i.note ? `<br><small>(${i.note})</small>` : ''}</td><td class="col-qty">${i.qty}</td><td class="col-total">${(i.price * i.qty).toFixed(0)}</td></tr>`).join('');
             
-            return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Receipt</title><style>body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; } .ticket { background-color: #fff; width: 80mm; min-height: 150mm; padding: 10px; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.2); margin-bottom: 20px; position: relative; text-align: center; } .header img { max-width: ${receiptConfig.logoWidth}px; display:block; margin:0 auto 5px; } .header h1 { margin: 0; font-size: ${receiptConfig.headerSz}px; color: #2c3e50; text-transform: uppercase; } .header p { margin: 2px 0; font-size: ${receiptConfig.subSz}px; color: #555; } .meta-info { font-size: ${receiptConfig.metaSz}px; margin-bottom: 10px; text-align: left; } table { width: 100%; border-collapse: collapse; font-size: ${receiptConfig.tableSz}px; margin-bottom: 10px; text-align: left; } .totals { border-top: 2px solid #333; padding-top: 5px; font-size: ${receiptConfig.totalSz}px; text-align: left; } .footer { margin-top: 15px; text-align: center; font-size: ${receiptConfig.footerSz}px; color: #777; } .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px; margin-bottom: 10px; } .meta-row { display: flex; justify-content: space-between; } table th { background-color: #f8f9fa; border-bottom: 2px solid #333; text-align: left; padding: 5px 2px; color: #333; } table td { border-bottom: 1px dotted #ccc; padding: 8px 2px; vertical-align: top; } .col-qty { width: 15%; text-align: center; } .col-item { width: 55%; } .col-total { width: 30%; text-align: right; } .totals-row { display: flex; justify-content: space-between; padding: 3px 0; } .totals-row.final { font-weight: bold; margin-top: 5px; border-top: 1px dashed #aaa; padding-top: 5px; } .controls { width: 80mm; display: flex; justify-content: space-between; margin-bottom: 10px; } .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; } .btn-print { background-color: #2ecc71; } .btn-close { background-color: #e74c3c; } @media print { body { background: none; padding: 0; margin: 0; display: flex; justify-content: center; } .controls { display: none !important; } .ticket { width: 100%; max-width: 80mm; box-shadow: none; margin: 0 auto; padding: 0; border: none; } * { color: #000 !important; } }</style></head><body><div class="controls"><button class="btn btn-close" onclick="window.close()">Close</button><button class="btn btn-print" onclick="window.print()">Print</button></div><div class="ticket"><div class="header">${receiptConfig.logo ? `<img src="${receiptConfig.logo}">` : ''}<h1>${receiptConfig.title}</h1><p>${receiptConfig.sub}</p><p>${receiptConfig.phone ? 'Tel: ' + receiptConfig.phone : ''}</p></div><div class="meta-info"><div class="meta-row"><span><strong>Invoice #: ${o.dailyNo}</strong></span><span>${o.date}</span></div><div class="meta-row"><span>Type: ${o.mode}</span><span>${o.time}</span></div>${waiterHTML}<br>${custInfoHTML}</div><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-total">Total</th></tr></thead><tbody>${itemsRows}</tbody></table><div class="totals"><div class="totals-row"><span>Subtotal</span><span>${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="totals-row"><span>Discount</span><span>-${o.discount.toFixed(0)}</span></div>` : ''}${o.serviceCharges > 0 ? `<div class="totals-row"><span>Service</span><span>${o.serviceCharges.toFixed(0)}</span></div>` : ''}<div class="totals-row final"><span>Total</span><span>Rs ${o.total.toFixed(0)}</span></div><div class="totals-row"><span>Status</span><span>${o.payStatus}</span></div></div><div class="footer"><p>${receiptConfig.footer}</p>${receiptConfig.poweredBy ? `<p style="margin-top:10px;">${receiptConfig.poweredBy}</p>` : ''}</div></div></body></html>`;
+            return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Receipt</title><style>body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; } .ticket { background-color: #fff; width: 80mm; min-height: 150mm; padding: 10px; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.2); margin-bottom: 20px; position: relative; text-align: center; } .header img { max-width: ${receiptConfig.logoWidth}px; display:block; margin:0 auto 5px; } .header h1 { margin: 0; font-size: ${receiptConfig.headerSz}px; color: #2c3e50; text-transform: uppercase; } .header p { margin: 2px 0; font-size: ${receiptConfig.subSz}px; color: #555; } .meta-info { font-size: ${receiptConfig.metaSz}px; margin-bottom: 10px; text-align: left; } table { width: 100%; border-collapse: collapse; font-size: ${receiptConfig.tableSz}px; margin-bottom: 10px; text-align: left; } .totals { border-top: 2px solid #333; padding-top: 5px; font-size: ${receiptConfig.totalSz}px; text-align: left; } .footer { margin-top: 15px; text-align: center; font-size: ${receiptConfig.footerSz}px; color: #777; } .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px; margin-bottom: 10px; } .meta-row { display: flex; justify-content: space-between; } table th { background-color: #f8f9fa; border-bottom: 2px solid #333; text-align: left; padding: 5px 2px; color: #333; } table td { border-bottom: 1px dotted #ccc; padding: 8px 2px; vertical-align: top; } .col-qty { width: 15%; text-align: center; } .col-item { width: 55%; } .col-total { width: 30%; text-align: right; } .totals-row { display: flex; justify-content: space-between; padding: 3px 0; } .totals-row.final { font-weight: bold; margin-top: 5px; border-top: 1px dashed #aaa; padding-top: 5px; } .controls { width: 80mm; display: flex; justify-content: space-between; margin-bottom: 10px; } .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; } .btn-print { background-color: #2ecc71; } .btn-close { background-color: #e74c3c; } @media print { body { background: none; padding: 0; margin: 0; display: flex; justify-content: center; } .controls { display: none !important; } .ticket { width: 100%; max-width: 80mm; box-shadow: none; margin: 0 auto; padding: 0; border: none; } * { color: #000 !important; } }</style></head><body><div class="controls"><button class="btn btn-close" onclick="window.close()">Close</button><button class="btn btn-print" onclick="window.print()">Print</button></div><div class="ticket"><div class="header">${receiptConfig.logo ? `<img src="${receiptConfig.logo}">` : ''}<h1>${receiptConfig.title}</h1><p>${receiptConfig.sub}</p><p>${receiptConfig.phone ? 'Tel: ' + receiptConfig.phone : ''}</p></div><div class="meta-info"><div class="meta-row"><span><strong>Invoice #: ${o.dailyNo}</strong></span><span>${o.date}</span></div><div class="meta-row"><span>Type: ${o.mode}</span><span>${o.time}</span></div>${waiterHTML}<br>${custInfoHTML}</div><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-total">Total</th></tr></thead><tbody>${itemsRows}</tbody></table><div class="totals"><div class="totals-row"><span>Subtotal</span><span>${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="totals-row"><span>Discount</span><span>-${o.discount.toFixed(0)}</span></div>` : ''}${o.pointsUsed > 0 ? `<div class="totals-row"><span>Points Used</span><span>-${(o.pointsUsed * loyaltyConfig.redeemValue).toFixed(0)}</span></div>` : ''}${o.serviceCharges > 0 ? `<div class="totals-row"><span>Service</span><span>${o.serviceCharges.toFixed(0)}</span></div>` : ''}<div class="totals-row final"><span>Total</span><span>Rs ${o.total.toFixed(0)}</span></div><div class="totals-row"><span>Status</span><span>${o.payStatus}</span></div></div><div class="footer"><p>${receiptConfig.footer}</p>${receiptConfig.poweredBy ? `<p style="margin-top:10px;">${receiptConfig.poweredBy}</p>` : ''}${loyaltyConfig.enabled && o.customerDetails && o.pointsEarned ? `<p style="margin-top:5px; font-weight:bold; color:#333;">Points Earned: ${o.pointsEarned}</p>` : ''}</div></div></body></html>`;
         }
 
         // --- ALL SALES UPDATE ---
@@ -1752,11 +1953,37 @@
         // --- PASSWORD PROTECTED ACTIONS ---
         function secureDeleteSingle(id) {
             let pass = prompt("🔐 Enter Admin Password:");
-            if(pass === "4472") { salesHistory.find(x=>x.id===id).isDeleted=true; saveSalesOnly(); renderAllSales(); showCustomAlert("Deleted Successfully"); } else if(pass !== null) { showCustomAlert("WRONG PASSWORD!"); }
+            if(pass === "4472") { 
+                let target = salesHistory.find(x=>x.id===id);
+                if(target) {
+                    target.isDeleted = true;
+                    
+                    // Revert points if order is deleted
+                    if(loyaltyConfig.enabled && target.customerDetails && target.customerDetails.phone) {
+                        let ph = target.customerDetails.phone;
+                        if(customerDB[ph]) {
+                            customerDB[ph].points = (customerDB[ph].points || 0) + (target.pointsUsed || 0) - (target.pointsEarned || 0);
+                            dbRef.child('custs').child(ph).set(customerDB[ph]);
+                        }
+                    }
+
+                    saveSingleOrder(target);
+                    renderAllSales();
+                    showCustomAlert("Deleted Successfully");
+                }
+            } else if(pass !== null) { showCustomAlert("WRONG PASSWORD!"); }
         }
         function secureDeleteAll() {
             let pass = prompt("🔐 Enter Admin Password:");
-            if(pass === "4472") { showCustomConfirm("⚠️ ARE YOU SURE? THIS WILL WIPE ALL SALES HISTORY.", () => { salesHistory = []; saveSalesOnly(); renderAllSales(); showCustomAlert("All Sales Data Wiped."); }); } else if(pass !== null) { showCustomAlert("WRONG PASSWORD!"); }
+            if(pass === "4472") { 
+                showCustomConfirm("⚠️ ARE YOU SURE? THIS WILL WIPE ALL SALES HISTORY.", () => { 
+                    salesHistory = []; 
+                    dbRef.child('sales').remove();
+                    localStorage.removeItem('jaffazOfflineQueue');
+                    renderAllSales(); 
+                    showCustomAlert("All Sales Data Wiped."); 
+                }); 
+            } else if(pass !== null) { showCustomAlert("WRONG PASSWORD!"); }
         }
         
         // --- ANALYTICS & SUMMARY ---
@@ -1846,6 +2073,28 @@
         function solveCalc() { try { document.getElementById('calcDisplay').value = eval(document.getElementById('calcDisplay').value); } catch{} }
 
         init();
+// --- APP LOCK LOGIC ---
+        function unlockApp() {
+            const pin = document.getElementById('appPin').value;
+            if(pin === "746242") { // Yahan aap apna marzi ka password likh sakte hain
+                document.getElementById('appLockScreen').style.display = 'none';
+                sessionStorage.setItem('jaffazUnlocked', 'true');
+            } else {
+                document.getElementById('lockError').style.display = 'block';
+            }
+        }
+        
+        // Agar pehle se login hai to bar bar password na mange
+        window.addEventListener('load', function() {
+            if(sessionStorage.getItem('jaffazUnlocked') === 'true') {
+                document.getElementById('appLockScreen').style.display = 'none';
+            }
+        });
+
+        // Enter key se unlock karne ke liye
+        document.getElementById('appPin').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') unlockApp();
+        });
     </script>
 </body>
 </html>

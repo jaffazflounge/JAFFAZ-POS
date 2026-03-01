@@ -1913,9 +1913,39 @@
             if(o.mode === 'Dine In' && o.sourceInfo) {
                 waiterHTML = `<div class="meta-row" style="margin-top:2px;"><span>Waiter:</span> <strong>${o.sourceInfo}</strong></div>`;
             }
-            const itemsRows = o.items.map(i => `<tr><td><strong>${i.name}</strong>${i.note ? `<br><small>(${i.note})</small>` : ''}</td><td class="col-qty">${i.qty}</td><td class="col-total">${(i.price * i.qty).toFixed(0)}</td></tr>`).join('');
+            const itemsRows = o.items.map(i => `<tr><td class="col-item"><strong>${i.name}</strong>${i.note ? `<br><small>(${i.note})</small>` : ''}</td><td class="col-qty">${i.qty}</td><td class="col-total">${(i.price * i.qty).toFixed(0)}</td></tr>`).join('');
             
-            return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Receipt</title><style>body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; } .ticket { background-color: #fff; width: 80mm; min-height: 150mm; padding: 10px; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.2); margin-bottom: 20px; position: relative; text-align: center; } .header img { max-width: ${receiptConfig.logoWidth}px; display:block; margin:0 auto 5px; } .header h1 { margin: 0; font-size: ${receiptConfig.headerSz}px; color: #2c3e50; text-transform: uppercase; } .header p { margin: 2px 0; font-size: ${receiptConfig.subSz}px; color: #555; } .meta-info { font-size: ${receiptConfig.metaSz}px; margin-bottom: 10px; text-align: left; } table { width: 100%; border-collapse: collapse; font-size: ${receiptConfig.tableSz}px; margin-bottom: 10px; text-align: left; } .totals { border-top: 2px solid #333; padding-top: 5px; font-size: ${receiptConfig.totalSz}px; text-align: left; } .footer { margin-top: 15px; text-align: center; font-size: ${receiptConfig.footerSz}px; color: #777; } .header { text-align: center; border-bottom: 2px dashed #333; padding-bottom: 10px; margin-bottom: 10px; } .meta-row { display: flex; justify-content: space-between; } table th { background-color: #f8f9fa; border-bottom: 2px solid #333; text-align: left; padding: 5px 2px; color: #333; } table td { border-bottom: 1px dotted #ccc; padding: 8px 2px; vertical-align: top; } .col-qty { width: 15%; text-align: center; } .col-item { width: 55%; } .col-total { width: 30%; text-align: right; } .totals-row { display: flex; justify-content: space-between; padding: 3px 0; } .totals-row.final { font-weight: bold; margin-top: 5px; border-top: 1px dashed #aaa; padding-top: 5px; } .controls { width: 80mm; display: flex; justify-content: space-between; margin-bottom: 10px; } .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; } .btn-print { background-color: #2ecc71; } .btn-close { background-color: #e74c3c; } @media print { body { background: none; padding: 0; margin: 0; display: flex; justify-content: center; } .controls { display: none !important; } .ticket { width: 100%; max-width: 80mm; box-shadow: none; margin: 0 auto; padding: 0; border: none; } * { color: #000 !important; } }</style></head><body><div class="controls"><button class="btn btn-close" onclick="window.close()">Close</button><button class="btn btn-print" onclick="window.print()">Print</button></div><div class="ticket"><div class="header">${receiptConfig.logo ? `<img src="${receiptConfig.logo}">` : ''}<h1>${receiptConfig.title}</h1><p>${receiptConfig.sub}</p><p>${receiptConfig.phone ? 'Tel: ' + receiptConfig.phone : ''}</p></div><div class="meta-info"><div class="meta-row"><span><strong>Invoice #: ${o.dailyNo}</strong></span><span>${o.date}</span></div><div class="meta-row"><span>Type: ${o.mode}</span><span>${o.time}</span></div>${waiterHTML}<br>${custInfoHTML}</div><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-total">Total</th></tr></thead><tbody>${itemsRows}</tbody></table><div class="totals"><div class="totals-row"><span>Subtotal</span><span>${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="totals-row"><span>Discount</span><span>-${o.discount.toFixed(0)}</span></div>` : ''}${o.pointsUsed > 0 ? `<div class="totals-row"><span>Points Used</span><span>-${(o.pointsUsed * loyaltyConfig.redeemValue).toFixed(0)}</span></div>` : ''}${o.serviceCharges > 0 ? `<div class="totals-row"><span>Service</span><span>${o.serviceCharges.toFixed(0)}</span></div>` : ''}<div class="totals-row final"><span>Total</span><span>Rs ${o.total.toFixed(0)}</span></div><div class="totals-row"><span>Status</span><span>${o.payStatus}</span></div></div><div class="footer"><p>${receiptConfig.footer}</p>${receiptConfig.poweredBy ? `<p style="margin-top:10px;">${receiptConfig.poweredBy}</p>` : ''}${loyaltyConfig.enabled && o.customerDetails && o.pointsEarned ? `<p style="margin-top:5px; font-weight:bold; color:#333;">Points Earned: ${o.pointsEarned}</p>` : ''}</div></div></body></html>`;
+            return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Receipt</title><style>
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; } 
+            .ticket { background-color: #fff; width: 100%; max-width: 350px; padding: 15px; box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.2); position: relative; } 
+            .header img { max-width: ${receiptConfig.logoWidth}px; display:block; margin:0 auto 5px; } 
+            .header h1 { margin: 0; font-size: ${receiptConfig.headerSz}px; color: #2c3e50; text-transform: uppercase; text-align: center; } 
+            .header p { margin: 2px 0; font-size: ${receiptConfig.subSz}px; color: #555; text-align: center; } 
+            .meta-info { font-size: ${receiptConfig.metaSz}px; margin-bottom: 10px; text-align: left; } 
+            table { width: 100%; border-collapse: collapse; font-size: ${receiptConfig.tableSz}px; margin-bottom: 10px; text-align: left; table-layout: auto; } 
+            .totals { border-top: 2px solid #333; padding-top: 5px; font-size: ${receiptConfig.totalSz}px; text-align: left; } 
+            .footer { margin-top: 15px; text-align: center; font-size: ${receiptConfig.footerSz}px; color: #777; } 
+            .header { border-bottom: 2px dashed #333; padding-bottom: 10px; margin-bottom: 10px; } 
+            .meta-row { display: flex; justify-content: space-between; } 
+            table th { background-color: #f8f9fa; border-bottom: 2px solid #333; text-align: left; padding: 5px 2px; color: #333; } 
+            table td { border-bottom: 1px dotted #ccc; padding: 8px 2px; vertical-align: top; word-break: break-word; } 
+            .col-qty { text-align: center; white-space: nowrap; width: 1%; padding: 8px 5px !important; } 
+            .col-item { width: auto; } 
+            .col-total { text-align: right; white-space: nowrap; width: 1%; } 
+            .totals-row { display: flex; justify-content: space-between; padding: 3px 0; } 
+            .totals-row.final { font-weight: bold; margin-top: 5px; border-top: 1px dashed #aaa; padding-top: 5px; } 
+            .controls { text-align: center; margin-bottom: 10px; } 
+            .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; margin: 0 5px; } 
+            .btn-print { background-color: #2ecc71; } 
+            .btn-close { background-color: #e74c3c; } 
+            @media print { 
+                @page { margin: 0; padding: 0; }
+                body { background: none; padding: 0; margin: 0; display: block; } 
+                .controls { display: none !important; } 
+                .ticket { width: 100%; max-width: 100%; box-shadow: none; margin: 0; padding: 5px; border: none; } 
+                * { color: #000 !important; } 
+            }
+            </style></head><body><div><div class="controls"><button class="btn btn-close" onclick="window.close()">Close</button><button class="btn btn-print" onclick="window.print()">Print</button></div><div class="ticket"><div class="header">${receiptConfig.logo ? `<img src="${receiptConfig.logo}">` : ''}<h1>${receiptConfig.title}</h1><p>${receiptConfig.sub}</p><p>${receiptConfig.phone ? 'Tel: ' + receiptConfig.phone : ''}</p></div><div class="meta-info"><div class="meta-row"><span><strong>Invoice #: ${o.dailyNo}</strong></span><span>${o.date}</span></div><div class="meta-row"><span>Type: ${o.mode}</span><span>${o.time}</span></div>${waiterHTML}<br>${custInfoHTML}</div><table><thead><tr><th class="col-item">Item</th><th class="col-qty">Qty</th><th class="col-total">Total</th></tr></thead><tbody>${itemsRows}</tbody></table><div class="totals"><div class="totals-row"><span>Subtotal</span><span>${o.subtotal.toFixed(0)}</span></div>${o.discount > 0 ? `<div class="totals-row"><span>Discount</span><span>-${o.discount.toFixed(0)}</span></div>` : ''}${o.pointsUsed > 0 ? `<div class="totals-row"><span>Points Used</span><span>-${(o.pointsUsed * loyaltyConfig.redeemValue).toFixed(0)}</span></div>` : ''}${o.serviceCharges > 0 ? `<div class="totals-row"><span>Service</span><span>${o.serviceCharges.toFixed(0)}</span></div>` : ''}<div class="totals-row final"><span>Total</span><span>Rs ${o.total.toFixed(0)}</span></div><div class="totals-row"><span>Status</span><span>${o.payStatus}</span></div></div><div class="footer"><p>${receiptConfig.footer}</p>${receiptConfig.poweredBy ? `<p style="margin-top:10px;">${receiptConfig.poweredBy}</p>` : ''}${loyaltyConfig.enabled && o.customerDetails && o.pointsEarned ? `<p style="margin-top:5px; font-weight:bold; color:#333;">Points Earned: ${o.pointsEarned}</p>` : ''}</div></div></div></body></html>`;
         }
 
         // --- ALL SALES UPDATE ---
@@ -2073,7 +2103,8 @@
         function solveCalc() { try { document.getElementById('calcDisplay').value = eval(document.getElementById('calcDisplay').value); } catch{} }
 
         init();
-// --- APP LOCK LOGIC ---
+        
+        // --- APP LOCK LOGIC ---
         function unlockApp() {
             const pin = document.getElementById('appPin').value;
             if(pin === "746242") { // Yahan aap apna marzi ka password likh sakte hain

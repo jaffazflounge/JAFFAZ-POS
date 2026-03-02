@@ -298,6 +298,9 @@
         <button class="nav-btn" onclick="openSummary()">📊 Daily Summary</button>
         <button class="nav-btn" onclick="toggleCalc()">🧮 Calculator</button>
         
+        <button class="nav-btn" onclick="openAIPredictor()" style="background:#8e44ad; color:white; border:none;">🤖 AI Predictor</button>
+        <button class="nav-btn" onclick="openWebRTCPanel()" style="background:#2980b9; color:white; border:none;">📡 Local Sync: <span id="rtcStatusUI">Off</span></button>
+
         <div style="margin-left: 10px; display:flex; align-items:center; gap:5px; font-size:10px;">
              <label style="cursor:pointer;"><input type="checkbox" id="autoPrintToggle" onchange="toggleAutoPrint()"> 🖨️ PC Auto-Print Mode</label>
         </div>
@@ -512,6 +515,35 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="aiPredictorModal">
+        <div class="modal-content" style="width: 500px; padding: 20px; background: linear-gradient(135deg, #2c3e50, #3498db); color: white;">
+            <button class="close-x" onclick="closeAIPredictor()" style="background: white; color: black;">&times;</button>
+            <h2 style="margin-top:0;">🤖 AI Smart Predictor</h2>
+            <p id="aiDayInfo" style="font-size: 14px; margin-bottom: 20px;">Analyzing historical trends...</p>
+            <div id="aiResults" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+            </div>
+            <button onclick="generateAIPrediction()" style="margin-top:20px; padding:10px; background:#e74c3c; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; width:100%;">🔄 Recalculate Predictions</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="webrtcModal">
+        <div class="modal-content" style="width: 400px; padding: 20px;">
+            <button class="close-x" onclick="closeWebRTCPanel()">&times;</button>
+            <h2 style="margin-top:0;">📡 WebRTC Local Mesh</h2>
+            <p style="font-size: 13px; color: #555;">Connect devices directly over Local Wi-Fi (No Internet needed after connection). One device must "Host" and others "Join".</p>
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="hostWebRTC()" style="flex:1; padding:12px; background:#27ae60; color:white; font-weight:bold; border:none; border-radius:5px; cursor:pointer;">🏠 Host Network</button>
+                <button onclick="joinWebRTC()" style="flex:1; padding:12px; background:#2980b9; color:white; font-weight:bold; border:none; border-radius:5px; cursor:pointer;">🔗 Join Network</button>
+            </div>
+            <button onclick="clearWebRTCSignaling()" style="margin-top:10px; width:100%; padding:8px; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer;">Reset Signaling (If error)</button>
+
+            <div style="margin-top: 20px; background: #eee; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; color: black;" id="rtcLog">
+                Status: Disconnected
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CUSTOM ALERTS LOGIC ---
         function showCustomAlert(msg, title = "Notice") {
@@ -695,6 +727,11 @@
                 q.push(order);
                 localStorage.setItem('jaffazOfflineQueue', JSON.stringify(q));
                 showCustomAlert("Order saved offline. Will auto-sync when internet returns.");
+            }
+            
+            // WEBRTC SYNC HOOK ADDED HERE FOR LOCAL MESH P2P Broadcast
+            if (window.rtcDataChannel && window.rtcDataChannel.readyState === 'open') {
+                window.rtcDataChannel.send(JSON.stringify({ type: 'SYNC_ORDER', data: order }));
             }
         }
 
@@ -2101,6 +2138,181 @@
         function pressCalc(v) { document.getElementById('calcDisplay').value+=v; }
         function clearCalc() { document.getElementById('calcDisplay').value=''; }
         function solveCalc() { try { document.getElementById('calcDisplay').value = eval(document.getElementById('calcDisplay').value); } catch{} }
+
+        // --- NEW: AI SMART PREDICTOR ---
+        function openAIPredictor() {
+            document.getElementById('aiPredictorModal').style.display = 'flex';
+            generateAIPrediction();
+        }
+        
+        function closeAIPredictor() {
+            document.getElementById('aiPredictorModal').style.display = 'none';
+        }
+
+        function generateAIPrediction() {
+            const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+            const todayStr = days[new Date().getDay()];
+            document.getElementById('aiDayInfo').innerText = `Analyzing historical sales data for all past ${todayStr}s...`;
+
+            let itemStats = {};
+            let dayCountMap = {}; 
+            let totalRevenue = 0;
+
+            salesHistory.forEach(o => {
+                if(o.isDeleted || !o.date) return;
+                const parts = o.date.split('/'); 
+                if(parts.length === 3) {
+                    const dateObj = new Date(parts[2], parts[1]-1, parts[0]);
+                    if(days[dateObj.getDay()] === todayStr) {
+                        dayCountMap[o.date] = true;
+                        totalRevenue += (o.total || 0);
+                        o.items.forEach(i => {
+                            if(!itemStats[i.name]) itemStats[i.name] = 0;
+                            itemStats[i.name] += i.qty;
+                        });
+                    }
+                }
+            });
+
+            const uniqueDays = Object.keys(dayCountMap).length || 1;
+            const avgRevenue = (totalRevenue / uniqueDays).toFixed(0);
+
+            let sortedItems = Object.entries(itemStats)
+                .map(([name, qty]) => ({ name, avgQty: Math.ceil(qty / uniqueDays) }))
+                .sort((a,b) => b.avgQty - a.avgQty)
+                .slice(0, 5);
+
+            let html = `<h3 style="margin-top:0; color:#f1c40f;">Predicted Revenue: Rs ${avgRevenue}</h3>`;
+            html += `<p style="font-weight:bold; margin-bottom:10px;">Top Items to Prepare (Based on Average Trends):</p>`;
+            
+            if(sortedItems.length === 0) {
+                html += `<p>Not enough data for ${todayStr} yet to make an AI prediction.</p>`;
+            } else {
+                html += `<table style="width:100%; text-align:left; border-collapse:collapse;">
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.2);">
+                                <th style="padding:5px 0;">Menu Item</th><th>Est. Qty Needed</th>
+                            </tr>`;
+                sortedItems.forEach(item => {
+                    html += `<tr>
+                                <td style="padding:5px 0;">${item.name}</td>
+                                <td style="font-weight:bold; color:#2ecc71;">${item.avgQty}</td>
+                             </tr>`;
+                });
+                html += `</table>`;
+            }
+
+            document.getElementById('aiResults').innerHTML = html;
+        }
+
+        // --- NEW: WEBRTC LOCAL MESH NETWORK (P2P NO-INTERNET SYNC) ---
+        let rtcPeerConnection;
+        let rtcDataChannel;
+
+        function openWebRTCPanel() {
+            document.getElementById('webrtcModal').style.display = 'flex';
+        }
+        function closeWebRTCPanel() {
+            document.getElementById('webrtcModal').style.display = 'none';
+        }
+
+        async function hostWebRTC() {
+            document.getElementById('rtcLog').innerText = "Hosting Local Mesh... waiting for peers to join.";
+            rtcPeerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            rtcDataChannel = rtcPeerConnection.createDataChannel('pos_sync');
+            setupRTCListeners();
+
+            rtcPeerConnection.onicecandidate = e => {
+                if(e.candidate) db.ref('webrtc_signaling/host_candidates').push(e.candidate.toJSON());
+            };
+
+            const offer = await rtcPeerConnection.createOffer();
+            await rtcPeerConnection.setLocalDescription(offer);
+            db.ref('webrtc_signaling/offer').set({ type: offer.type, sdp: offer.sdp });
+
+            db.ref('webrtc_signaling/answer').on('value', snap => {
+                const answer = snap.val();
+                if(answer && rtcPeerConnection.signalingState !== 'stable') {
+                    rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+                }
+            });
+
+            db.ref('webrtc_signaling/peer_candidates').on('child_added', snap => {
+                rtcPeerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
+            });
+        }
+
+        async function joinWebRTC() {
+            document.getElementById('rtcLog').innerText = "Joining Host Network...";
+            rtcPeerConnection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            
+            rtcPeerConnection.ondatachannel = event => {
+                rtcDataChannel = event.channel;
+                setupRTCListeners();
+            };
+
+            rtcPeerConnection.onicecandidate = e => {
+                if(e.candidate) db.ref('webrtc_signaling/peer_candidates').push(e.candidate.toJSON());
+            };
+
+            const offerSnap = await db.ref('webrtc_signaling/offer').once('value');
+            const offer = offerSnap.val();
+            if(!offer) {
+                document.getElementById('rtcLog').innerText = "❌ No Host found! Start Host on main device first.";
+                return;
+            }
+
+            await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await rtcPeerConnection.createAnswer();
+            await rtcPeerConnection.setLocalDescription(answer);
+            db.ref('webrtc_signaling/answer').set({ type: answer.type, sdp: answer.sdp });
+
+            db.ref('webrtc_signaling/host_candidates').on('child_added', snap => {
+                rtcPeerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
+            });
+        }
+
+        function setupRTCListeners() {
+            rtcDataChannel.onopen = () => {
+                document.getElementById('rtcLog').innerText = "✅ Successfully Connected via WebRTC P2P! Internet no longer required for local sync.";
+                document.getElementById('rtcStatusUI').innerText = "On";
+                document.getElementById('rtcStatusUI').style.color = "lime";
+            };
+            
+            rtcDataChannel.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if(msg.type === 'SYNC_ORDER') {
+                        let idx = salesHistory.findIndex(o => o.id === msg.data.id);
+                        if(idx === -1) {
+                            salesHistory.unshift(msg.data);
+                            // Live update the history table if it's currently open
+                            if(document.getElementById('todayHistoryModal').style.display === 'flex') {
+                                renderTodayHistory(); 
+                            }
+                            showCustomAlert("New Order Received via Local Mesh Network!");
+                        } else {
+                            salesHistory[idx] = msg.data;
+                            if(document.getElementById('todayHistoryModal').style.display === 'flex') {
+                                renderTodayHistory(); 
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.log("WebRTC Message Error", e);
+                }
+            };
+            
+            rtcDataChannel.onclose = () => {
+                document.getElementById('rtcLog').innerText = "Connection Closed.";
+                document.getElementById('rtcStatusUI').innerText = "Off";
+                document.getElementById('rtcStatusUI').style.color = "white";
+            };
+        }
+        
+        function clearWebRTCSignaling() {
+            db.ref('webrtc_signaling').remove();
+            document.getElementById('rtcLog').innerText = "Signaling Cleared. Ready to Host/Join again.";
+        }
 
         init();
         
